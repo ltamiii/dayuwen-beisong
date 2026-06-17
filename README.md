@@ -1,22 +1,7 @@
 # 大学语文背诵默写题生成器
 
 一个零依赖的单文件网页工具，辅助背诵大学语文 8 篇指定篇目。支持**学习模式**（注音、注释、逐句翻译、背景中心思想）和**默写模式**（三级难度随机挖空，自动生成模拟默写题）。
-
-## 快速部署
-
-### GitHub Pages（推荐）
-
-1. 在 GitHub 新建仓库，将 `index.html` 上传到仓库根目录
-2. Settings → Pages → Source 选 `main` 分支，点 Save
-3. 几分钟后访问 `https://你的用户名.github.io/仓库名/`
-
-### 任意静态托管
-
-把 `index.html` 放到任意静态文件服务器即可，无需构建、无需安装依赖。也支持：
-- **Netlify Drop**：直接拖拽 `index.html` 到 [app.netlify.com/drop](https://app.netlify.com/drop)
-- **Vercel**：`npx vercel` 一键部署
-- **本地预览**：`npx serve .` 然后浏览器打开
-
+但是默写模式不支持打字输入，可以自己过一遍或者写在纸上帮助更好记忆哦
 ## 使用说明
 
 ### 学习模式（默认）
