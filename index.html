@@ -148,9 +148,13 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #btn-menu {
-    background: none; border: none; color: #f0e6d3; font-size: 1.4rem;
-    cursor: pointer; padding: 4px 6px; line-height: 1;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+    color: #f0e6d3; font-size: 1.2rem; border-radius: 6px;
+    cursor: pointer; padding: 6px 10px; line-height: 1;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
   }
+  #btn-menu .menu-label { font-size: 0.75rem; letter-spacing: 1px; }
 
   /* ===== BACKDROP ===== */
   #backdrop {
@@ -192,7 +196,7 @@
 
 <!-- Mobile top bar -->
 <div id="mobile-bar">
-  <button id="btn-menu" onclick="toggleSidebar()" aria-label="菜单">☰</button>
+  <button id="btn-menu" onclick="toggleSidebar()" aria-label="菜单">☰ <span class="menu-label">篇目</span></button>
   <span class="bar-title" id="bar-title">大学语文背诵</span>
 </div>
 <!-- Backdrop overlay -->
