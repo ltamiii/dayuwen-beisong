@@ -6,7 +6,7 @@
 <title>大学语文背诵默写题生成器</title>
 <style>
   :root {
-    --sidebar-w: 260px;
+    --sidebar-w: 300px;
     --bg: #f5f0e8;
     --card-bg: #fffef9;
     --text: #3e3232;
@@ -137,7 +137,12 @@
   /* ===== RESPONSIVE ===== */
   @media (max-width: 768px) {
     body { flex-direction: column; }
-    #sidebar { position: relative; width: 100%; max-height: 40vh; flex-shrink: 0; }
+    #sidebar { position: relative; width: 100%; max-height: none; flex-shrink: 0; }
+    #sidebar h1 { font-size: 1rem; padding: 12px 14px 8px; }
+    #sidebar .subtitle { padding: 0 14px 10px; font-size: 0.68rem; }
+    #text-list { max-height: 22vh; overflow-y: auto; flex: none; }
+    #text-list .item { padding: 7px 14px; font-size: 0.82rem; }
+    #controls { padding: 10px 14px; }
     #main { margin-left: 0; padding: 14px 10px; }
     .study-grid { grid-template-columns: 1fr; }
     .bottom-sections { grid-template-columns: 1fr; }
