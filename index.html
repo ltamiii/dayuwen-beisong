@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大学语文背诵默写题生成器</title>
+<style>
+  :root {
+    --sidebar-w: 260px;
+    --bg: #f5f0e8;
+    --card-bg: #fffef9;
+    --text: #3e3232;
+    --text-light: #6b5e5e;
+    --accent: #8b4513;
+    --accent-light: #a0522d;
+    --border: #d4c5b2;
+    --blank: #c0392b;
+    --highlight: #fff3cd;
+    --highlight-strong: #ffc107;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Noto Serif SC", "Songti SC", "SimSun", "STSong", serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+    line-height: 1.8;
+  }
+
+  /* ===== SIDEBAR ===== */
+  #sidebar {
+    width: var(--sidebar-w);
+    background: #3e3232;
+    color: #f0e6d3;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 10;
+    overflow-y: auto;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.15);
+  }
+  #sidebar h1 { font-size: 1.1rem; text-align: center; padding: 20px 16px 14px; letter-spacing: 2px; border-bottom: 1px solid rgba(255,255,255,0.12); font-weight: 700; }
+  #sidebar .subtitle { text-align: center; font-size: 0.72rem; color: #b8a99a; padding: 0 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  #text-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+  #text-list .item { display: block; width: 100%; padding: 10px 18px; border: none; background: transparent; color: #c4b8a8; font-size: 0.88rem; text-align: left; cursor: pointer; font-family: inherit; transition: all 0.15s; border-left: 3px solid transparent; }
+  #text-list .item:hover { background: rgba(255,255,255,0.06); color: #f0e6d3; }
+  #text-list .item.active { background: rgba(139,69,19,0.3); color: #fff; border-left-color: #c89460; font-weight: 700; }
+  #text-list .item .author { font-size: 0.7rem; color: #9a8a7a; display: block; margin-top: 1px; }
+  #text-list .item.active .author { color: #c89460; }
+
+  #controls { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.08); }
+  #controls label { display: block; font-size: 0.76rem; color: #b8a99a; margin-bottom: 4px; }
+  .mode-switch { display: flex; gap: 0; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
+  .mode-switch button { flex: 1; padding: 8px 0; border: none; font-size: 0.8rem; cursor: pointer; font-family: inherit; color: #b8a99a; background: transparent; transition: all 0.15s; }
+  .mode-switch button.active { background: var(--accent); color: #fff; font-weight: 700; }
+
+  .diff-group { margin-bottom: 10px; }
+  .diff-group .label { font-size: 0.76rem; color: #b8a99a; display: block; margin-bottom: 4px; }
+  .diff-btns { display: flex; gap: 0; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
+  .diff-btns button { flex: 1; padding: 6px 0; border: none; font-size: 0.76rem; cursor: pointer; font-family: inherit; color: #b8a99a; background: transparent; transition: all 0.15s; }
+  .diff-btns button.active { background: #6b4e3d; color: #f0e6d3; font-weight: 700; }
+
+  #btn-regenerate { width: 100%; padding: 10px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #c89460; font-size: 0.83rem; cursor: pointer; font-family: inherit; border-radius: 6px; margin-top: 8px; transition: all 0.15s; }
+  #btn-regenerate:hover { background: rgba(200,148,96,0.15); }
+  #quiz-hint { font-size: 0.7rem; color: #8a7a6a; text-align: center; margin-top: 4px; }
+
+  /* ===== MAIN ===== */
+  #main { margin-left: var(--sidebar-w); flex: 1; padding: 24px 28px; max-width: 1100px; width: 100%; }
+
+  .art-header { margin-bottom: 20px; }
+  .art-header h2 { font-size: 1.5rem; margin-bottom: 2px; letter-spacing: 1px; }
+  .art-header .meta { font-size: 0.82rem; color: var(--text-light); }
+  .art-header .divider { width: 50px; height: 3px; background: var(--accent); margin-top: 8px; border-radius: 2px; }
+
+  /* ===== STUDY MODE: two columns ===== */
+  .study-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  @media (max-width: 900px) { .study-grid { grid-template-columns: 1fr; } }
+
+  .study-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+  .study-panel h3 { font-size: 0.95rem; color: var(--accent); padding: 14px 18px 10px; border-bottom: 1px dashed var(--border); letter-spacing: 1px; position: sticky; top: 0; background: var(--card-bg); z-index: 2; }
+  .study-panel .panel-body { padding: 14px 18px; overflow-y: auto; flex: 1; }
+
+  /* Original text panel */
+  .orig-text { font-size: 1.05rem; line-height: 2.3; }
+  .orig-text p { text-indent: 2em; margin-bottom: 10px; position: relative; }
+  .orig-text ruby { ruby-align: center; }
+  .orig-text rt { font-size: 0.52rem; color: #8b4513; }
+
+  /* Clickable sentence (for translation) */
+  .sentence { cursor: pointer; transition: background 0.12s; border-radius: 3px; padding: 0 1px; display: inline; }
+  .sentence:hover { background: rgba(139,69,19,0.06); }
+  .sentence.has-trans { border-bottom: 1px dotted #c89460; }
+
+  /* Clickable annotation term */
+  .anno-term { cursor: pointer; border-bottom: 1.5px dashed var(--accent-light); transition: all 0.12s; position: relative; }
+  .anno-term:hover { background: rgba(139,69,19,0.1); }
+  .anno-term.flash { background: var(--highlight-strong); border-radius: 2px; transition: background 0.05s; }
+
+  /* Translation popup below sentence */
+  .trans-popup { display: none; font-size: 0.85rem; color: #5a4a3a; background: #faf6ee; border-left: 3px solid #c89460; padding: 8px 12px; margin: 4px 0 4px 1em; border-radius: 0 6px 6px 0; line-height: 1.7; }
+  .trans-popup.show { display: block; }
+  .trans-popup .trans-label { font-size: 0.7rem; color: #a08060; margin-right: 6px; }
+
+  /* Annotations panel */
+  .anno-list {}
+  .anno-item { padding: 8px 10px; border-bottom: 1px solid #ece3d5; border-radius: 4px; transition: all 0.3s; cursor: default; }
+  .anno-item:last-child { border-bottom: none; }
+  .anno-item .anno-term { font-weight: 700; color: var(--accent); font-size: 0.9rem; }
+  .anno-item .anno-def { font-size: 0.82rem; color: var(--text-light); margin-top: 2px; display: block; }
+  .anno-item.highlight { background: var(--highlight); border-radius: 6px; box-shadow: 0 0 0 3px var(--highlight); }
+  .anno-item.flash { background: var(--highlight-strong); transition: background 0.05s; }
+
+  /* Bottom sections */
+  .bottom-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .bottom-sections { grid-template-columns: 1fr; } }
+  .info-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); }
+  .info-card h3 { font-size: 0.95rem; color: var(--accent); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--border); letter-spacing: 1px; }
+  .info-card p { font-size: 0.88rem; line-height: 1.85; }
+
+  /* ===== QUIZ MODE ===== */
+  .quiz-text { font-size: 1.15rem; line-height: 2.4; letter-spacing: 1px; }
+  .quiz-text p { text-indent: 2em; margin-bottom: 12px; }
+  .blank { color: var(--blank); font-weight: 700; letter-spacing: 1px; }
+  .blank .answer-reveal { color: var(--blank); font-weight: 700; background: #fff3cd; padding: 1px 2px; border-radius: 3px; }
+  .hidden-answer { display: none; }
+  .shown { display: inline; }
+
+  #btn-show-answers { display: inline-block; padding: 9px 20px; border: 2px solid var(--accent); background: transparent; color: var(--accent); font-size: 0.88rem; cursor: pointer; font-family: inherit; border-radius: 6px; margin-bottom: 14px; transition: all 0.15s; }
+  #btn-show-answers:hover { background: var(--accent); color: #fff; }
+  #btn-show-answers.showing { background: var(--accent); color: #fff; }
+  .quiz-stats { font-size: 0.78rem; color: var(--text-light); margin-bottom: 10px; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    #sidebar { position: relative; width: 100%; max-height: 40vh; flex-shrink: 0; }
+    #main { margin-left: 0; padding: 14px 10px; }
+    .study-grid { grid-template-columns: 1fr; }
+    .bottom-sections { grid-template-columns: 1fr; }
+    .orig-text { font-size: 0.95rem; }
+    .quiz-text { font-size: 1rem; }
+  }
+
+  .fade { animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0.4; } to { opacity: 1; } }
+  @keyframes flashBg { 0%{background:var(--highlight-strong)} 100%{background:transparent} }
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <h1>大学语文背诵</h1>
+  <div class="subtitle">默写题生成器</div>
+  <nav id="text-list"></nav>
+  <div id="controls">
+    <label>模式</label>
+    <div class="mode-switch">
+      <button id="mode-study" class="active">📖 学习</button>
+      <button id="mode-quiz">✏️ 默写</button>
+    </div>
+    <div class="diff-group" id="diff-group" style="display:none">
+      <span class="label">难度</span>
+      <div class="diff-btns">
+        <button data-diff="easy" class="active">简单</button>
+        <button data-diff="medium">中等</button>
+        <button data-diff="hard">困难</button>
+      </div>
+    </div>
+    <button id="btn-regenerate" style="display:none">🔄 重新生成</button>
+    <div id="quiz-hint" style="display:none">按 R 键快速重新生成</div>
+  </div>
+</aside>
+
+<main id="main"></main>
+
+<script>
+// ===================================================================
+// DATA
+// ===================================================================
+// Each sentence: { text, ruby:[{c, p, annoIdx?}], trans? }
+// ruby.annoIdx links to the annotations array index
+
+const texts = [
+
+// ==================== 1 ====================
+{
+  id:1, title:'王国维纪念碑碑文', author:'陈寅恪',
+  background:'1927年6月2日，国学大师王国维自沉于颐和园昆明湖。两年后，清华大学为其立碑，陈寅恪撰写此碑文。陈寅恪不将王国维之死视为"殉清"，而是将其提升到"独立之精神，自由之思想"的高度，使之成为中国现代知识分子精神独立的不朽宣言。',
+  centralIdea:'文章以"独立之精神，自由之思想"为核心，论证读书治学的终极目的是摆脱世俗束缚、追求真理。作者将王国维之死阐释为以生命捍卫思想自由的典范，而非个人恩怨或王朝兴亡所能解释，从而赋予这一历史事件以超越时代的永恒价值。',
+  paragraphs:[
+   {sentences:[
+     {text:'其词曰：士之读书治学，', trans:'碑文说：读书人做学问，'},
+     {text:'盖将以脱心志于俗谛', ruby:[{c:'谛',p:'dì',annoIdx:0}], trans:'是为了让心灵从世俗偏见的枷锁中挣脱出来，'},
+     {text:'之桎梏', ruby:[{c:'桎梏',p:'zhì gù',annoIdx:1}], trans:''},
+     {text:'，真理因得以发扬。', trans:'使真理得以发扬光大。'},
+     {text:'思想而不自由，', ruby:[{c:'毋宁',p:'wú nìng',annoIdx:7}], trans:'如果不能自由地思想，还不如死去。'},
+     {text:'毋宁死耳。', trans:''},
+     {text:'斯古今仁圣同殉', ruby:[{c:'殉',p:'xùn',annoIdx:2}], trans:'这是古今仁人志士共同为之献身的精义，'},
+     {text:'之精义，夫岂', ruby:[{c:'庸鄙',p:'yōng bǐ',annoIdx:8}], trans:'哪里是平庸浅陋之人所能理解的。'},
+     {text:'庸鄙之敢望。', trans:''},
+     {text:'先生以一死见其独立自由之意志，非所论于一人之恩怨，一姓之兴亡。', trans:'先生用他的死彰显了独立自由的意志，这不是关乎个人恩怨、王朝兴衰的事。'},
+     {text:'呜呼！', trans:'唉！'},
+     {text:'树兹', ruby:[{c:'兹',p:'zī',annoIdx:3}], trans:'在校园中树立此碑，'},
+     {text:'石于讲舍，系哀思而不忘。', trans:'寄托哀思永不忘记。'},
+     {text:'表哲人之奇节，诉', ruby:[{c:'真宰',p:'zhēn zǎi',annoIdx:4}], trans:'彰显哲人的奇节，向茫茫上苍诉说。'},
+     {text:'真宰之茫茫。', trans:''},
+     {text:'来世不可知者也，先生之著述，或有时而不章。', trans:'未来不可预知，先生的著作或许有朝一日不再流行。'},
+     {text:'先生之学说，或有时而可商。', trans:'先生的学说或许有朝一日可以商榷。'},
+     {text:'惟此独立之精神，自由之思想，历千万祀', ruby:[{c:'祀',p:'sì',annoIdx:5}], trans:'唯有这独立的精神、自由的思想，历经千万年，'},
+     {text:'，与天壤而同久，共', ruby:[{c:'三光',p:'sān guāng',annoIdx:6}], trans:'与天地一样长久，与日月星辰一同永放光芒。'},
+     {text:'三光而永光。', trans:''}
+   ]}
+  ],
+  annotations:[
+   {t:'俗谛',m:'佛教术语，与"真谛"相对，指世俗的、表面的道理或价值标准。此处指世俗偏见和功利的思维定式。'},
+   {t:'桎梏',m:'古代刑具，脚镣（桎）和手铐（梏）。比喻束缚人思想的枷锁。'},
+   {t:'仁圣同殉',m:'古往今来的仁人志士共同为之献身的精义。"殉"指为理想献出生命。'},
+   {t:'树兹石于讲舍',m:'在校园（清华大学）中树立此碑。"兹"即"此"，"讲舍"指讲堂校舍。'},
+   {t:'真宰',m:'宇宙的主宰，即天、造物主。语出《庄子》。'},
+   {t:'千万祀',m:'千万年。"祀"是殷商时期的纪年单位。'},
+   {t:'三光',m:'日、月、星。'},
+   {t:'毋宁',m:'不如。"思想而不自由，毋宁死耳"——如果不能自由思想，还不如死去。'},
+   {t:'庸鄙',m:'平庸浅陋之人。'}
+  ]
+},
+
+// ==================== 2 ====================
+{
+  id:2, title:'兰亭集序', author:'王羲之',
+  background:'东晋永和九年（公元353年）三月三日上巳节，王羲之与谢安、孙绰等41位名士在会稽山阴兰亭举行修禊雅集。众人曲水流觞、饮酒赋诗，后将诗作汇编成集，王羲之为之作序并亲笔书写，即千古第一行书《兰亭集序》。此文既是书法瑰宝，也是哲理深远的文学杰作。',
+  centralIdea:'文章前半部分写兰亭宴集的自然之美与友朋之乐，充满生命的欢愉；后半部分急转直下，由乐生悲，感叹人生短暂、世事无常，并对庄子"一死生""齐彭殇"的虚无主义提出批判。全文以"乐—痛—悲"三重情感递进，展现了对生命有限性的深刻体认和对超越性精神价值的追求。',
+  paragraphs:[
+   {sentences:[
+     {text:'永和九年，岁在癸', ruby:[{c:'癸',p:'guǐ'}], trans:'永和九年，这年是癸丑年，'},
+     {text:'丑，暮春之初，会于会稽', ruby:[{c:'会稽',p:'kuài jī'}], trans:'暮春三月初，我们在会稽郡'},
+     {text:'山阴之兰亭，修禊', ruby:[{c:'禊',p:'xì',annoIdx:0}], trans:'山阴县的兰亭聚会，举行修禊仪式。'},
+     {text:'事也。', trans:''},
+     {text:'群贤毕至，少长咸集。', trans:'众多贤士都来了，年轻的年长的都聚在一起。'},
+     {text:'此地有崇山峻岭，茂林修竹；', trans:'这里有高耸的山岭，茂密的树林和修长的竹子；'},
+     {text:'又有清流激湍', ruby:[{c:'湍',p:'tuān'}], trans:'又有清澈湍急的溪流，'},
+     {text:'，映带左右，引以为流觞', ruby:[{c:'觞',p:'shāng',annoIdx:1}], trans:'辉映环绕在左右，我们引溪水作为流觞的曲水，'},
+     {text:'曲水，列坐其次。', trans:'大家依次排列坐在水边。'},
+     {text:'虽无丝竹管弦之盛，一觞一咏，亦足以畅叙幽情。', trans:'虽然没有丝竹管弦的盛大排场，但喝一杯酒、吟一首诗，也足以畅叙内心深处的情怀。'}
+   ]},
+   {sentences:[
+     {text:'是日也，天朗气清，惠风和畅。', trans:'这一天，天空晴朗、空气清新，温和的风吹来，令人舒畅。'},
+     {text:'仰观宇宙之大，俯察品类之盛，所以游目骋', ruby:[{c:'骋',p:'chěng'}], trans:'抬头看宇宙的广阔，低头看万物的繁盛，'},
+     {text:'怀，足以极视听之娱，信可乐也。', trans:'放眼远望、舒展胸怀，足以让视觉和听觉享受达到极致，确实是令人快乐的。'}
+   ]},
+   {sentences:[
+     {text:'夫人之相与，俯仰一世，', trans:'人与人相处，在低头抬头之间就过完了一生，'},
+     {text:'或取诸怀抱，晤', ruby:[{c:'晤',p:'wù'}], trans:'有的人倾吐内心的志向抱负，'},
+     {text:'言一室之内；', trans:'在室内与朋友畅谈；'},
+     {text:'或因寄所托，放浪形骸', ruby:[{c:'骸',p:'hái'}], trans:'有的人则寄托情怀，'},
+     {text:'之外。', trans:'放纵自身于世俗礼法之外。'},
+     {text:'虽趣舍万殊，静躁不同，', trans:'虽然每个人的取舍千差万别，性情有安静有躁动，'},
+     {text:'当其欣于所遇，暂得于己，快然自足，不知老之将至。', trans:'但当他们对所遇到的事物感到欣喜时，暂时得到了满足，快乐自得，竟然忘记了衰老即将到来。'},
+     {text:'及其所之既倦，情随事迁，感慨系之矣。', trans:'等到他们对所追求的事物感到厌倦，情感随着境遇的变化而改变，感慨也就随之而来了。'},
+     {text:'向之所欣，俛', ruby:[{c:'俛',p:'fǔ'}], trans:'从前所喜欢的事物，'},
+     {text:'仰之间，已为陈迹，犹不能不以之兴怀。', trans:'转眼之间已经成了往事，尚且不能不因此而引发感慨。'},
+     {text:'况修短随化，终期于尽。', trans:'更何况人的寿命长短听凭造化安排，终究都有完结的一天。'},
+     {text:'古人云："死生亦大矣。"岂不痛哉！', trans:'古人说："死和生是人生的大事啊。"难道不令人悲痛吗！'}
+   ]},
+   {sentences:[
+     {text:'每览昔人兴感之由，若合一契', ruby:[{c:'契',p:'qì',annoIdx:2}], trans:'每次看到古人抒发感慨的缘由，都像符契一样吻合，'},
+     {text:'，未尝不临文嗟悼', ruby:[{c:'嗟悼',p:'jiē dào'}], trans:'没有一次不面对文章感叹悲伤，'},
+     {text:'，不能喻之于怀。', trans:'却无法从心里说清楚为什么。'},
+     {text:'固知一死生为虚诞，齐彭殇', ruby:[{c:'殇',p:'shāng',annoIdx:3}], trans:'我这才知道把生死等同看待是虚假荒诞的，把长寿和短命等同看待'},
+     {text:'为妄作。', trans:'是胡言乱语。'},
+     {text:'后之视今，亦犹今之视昔。悲夫！', trans:'后人看我们，也就像我们看古人一样。可悲啊！'},
+     {text:'故列叙时人，录其所述，虽世殊事异，所以兴怀，其致一也。', trans:'所以我一一记下这次聚会的人，收录他们所写的诗篇。虽然时代不同、事情各异，但引发感慨的原因，其本质是一样的。'},
+     {text:'后之览者，亦将有感于斯文。', trans:'后世读到这篇文章的人，也将会有所感触吧。'}
+   ]}
+  ],
+  annotations:[
+   {t:'修禊',m:'古代习俗，三月上巳日到水边沐浴以消除不祥。'},
+   {t:'流觞曲水',m:'将盛酒的杯放在弯曲的水渠中任其漂流，停在谁面前谁就取饮赋诗。'},
+   {t:'若合一契',m:'像符契一样吻合，指感受相同。契是古代凭证，双方各执一半，相合为证。'},
+   {t:'齐彭殇',m:'把长寿（彭祖，传说活了八百岁）和短命等同看待（庄子哲学）。王羲之斥之为"妄作"。'},
+   {t:'惠风',m:'温和的风。'},
+   {t:'俯仰一世',m:'在低头抬头之间度过一生，极言人生短暂。'},
+   {t:'趣舍万殊',m:'取舍千差万别。"趣"通"趋"。'},
+   {t:'修短随化',m:'寿命长短听从造化（自然）的安排。'},
+   {t:'死生亦大矣',m:'生和死是人生的大事。语出《庄子》。'},
+   {t:'一死生',m:'把生和死等同看待（庄子哲学）。王羲之斥之为"虚诞"。'}
+  ]
+},
+
+// ==================== 3 ====================
+{
+  id:3, title:'渔父', author:'楚辞',
+  background:'《渔父》是《楚辞》中的名篇，传为屈原所作（或后人追记）。写屈原被放逐后行吟泽畔，与一位渔父的对话。渔父代表道家随波逐流、与世推移的处世哲学，屈原则代表儒家洁身自好、宁死不屈的人格理想。两种人生观的碰撞构成了文章的张力。',
+  centralIdea:'文章通过屈原与渔父的对话，展现了两种截然不同的人生态度：渔父主张"与世推移"、随遇而安；屈原坚持"举世皆浊我独清"，宁赴湘流也不与世俗同流合污。全文以渔父莞尔一笑、鼓枻而歌作结，留下开放式思考——"沧浪之水"的清浊之喻，成为中国文人出处进退的经典意象。',
+  paragraphs:[
+   {sentences:[
+     {text:'屈原既放，游于江潭，行吟泽畔，颜色憔悴，形容枯槁', ruby:[{c:'槁',p:'gǎo'}], trans:'屈原被放逐之后，在江边深水处游荡，在沼泽边行吟，面色憔悴，形体干枯消瘦。'},
+     {text:'。', trans:''}
+   ]},
+   {sentences:[
+     {text:'渔父', ruby:[{c:'父',p:'fǔ'}], trans:'渔父'},
+     {text:'见而问之曰："子非三闾', ruby:[{c:'闾',p:'lǘ'}], trans:'看见他便问道："您不是三闾大夫吗？'},
+     {text:'大夫与', ruby:[{c:'与',p:'yú'}], trans:''},
+     {text:'？何故至于斯？"', trans:'为什么落到这种地步？"'}
+   ]},
+   {sentences:[
+     {text:'屈原曰："举世皆浊我独清，众人皆醉我独醒，是以见放。"', trans:'屈原说："全天下都污浊，只有我是清白的；所有人都醉了，只有我是清醒的，因此被放逐。"'}
+   ]},
+   {sentences:[
+     {text:'渔父曰："圣人不凝滞', ruby:[{c:'滞',p:'zhì',annoIdx:0}], trans:'渔父说："圣人不被外物所拘束，'},
+     {text:'于物，而能与世推移。', trans:'而能够随着世俗的变化而调整自己。'},
+     {text:'世人皆浊，何不淈', ruby:[{c:'淈',p:'gǔ',annoIdx:1}], trans:'既然世人都污浊，为什么不搅起水底的泥'},
+     {text:'其泥而扬其波？', trans:'扬起水面的波澜呢？'},
+     {text:'众人皆醉，何不餔', ruby:[{c:'餔',p:'bū',annoIdx:2}], trans:'既然众人都醉了，为什么不吃酒糟'},
+     {text:'其糟而歠', ruby:[{c:'歠',p:'chuò'}], trans:''},
+     {text:'其醨', ruby:[{c:'醨',p:'lí'}], trans:'喝薄酒呢？'},
+     {text:'？', trans:''},
+     {text:'何故深思高举，自令放为？"', trans:'为什么要思虑深远、行为清高，自己让自己被放逐呢？"'}
+   ]},
+   {sentences:[
+     {text:'屈原曰："吾闻之，新沐者必弹冠，新浴者必振衣。', trans:'屈原说："我听说，刚洗过头的人必定会弹一弹帽子（再戴），刚洗过澡的人必定会抖一抖衣服（再穿）。'},
+     {text:'安能以身之察察，受物之汶汶', ruby:[{c:'汶汶',p:'mén mén',annoIdx:3}], trans:'怎么能让洁净的身体，'},
+     {text:'者乎？', trans:'去沾染污浊的外物呢？'},
+     {text:'宁赴湘流，葬于江鱼之腹中。', trans:'我宁愿跳入湘江，葬身在江鱼的腹中。'},
+     {text:'安能以皓皓', ruby:[{c:'皓皓',p:'hào hào'}], trans:'怎么能让洁白无瑕的身体，'},
+     {text:'之白，而蒙世俗之尘埃乎？"', trans:'去蒙受世俗的尘埃呢？"'}
+   ]},
+   {sentences:[
+     {text:'渔父莞', ruby:[{c:'莞',p:'wǎn'}], trans:'渔父微微一笑，'},
+     {text:'尔而笑，鼓枻', ruby:[{c:'枻',p:'yì'}], trans:'拍打着船桨'},
+     {text:'而去，', trans:'离开了，'},
+     {text:'歌曰："沧浪', ruby:[{c:'沧浪',p:'cāng láng'}], trans:'唱道："沧浪江的水清澈啊，'},
+     {text:'之水清兮，可以濯', ruby:[{c:'濯',p:'zhuó'}], trans:'可以用来洗我的帽带；'},
+     {text:'吾缨', ruby:[{c:'缨',p:'yīng'}], trans:''},
+     {text:'；沧浪之水浊兮，可以濯吾足。"', trans:'沧浪江的水浑浊啊，可以用来洗我的脚。"'},
+     {text:'遂去，不复与言。', trans:'于是离开了，不再跟屈原说话。'}
+   ]}
+  ],
+  annotations:[
+   {t:'凝滞于物',m:'被外物拘泥、束缚。'},
+   {t:'淈其泥而扬其波',m:'搅起水底的泥，扬起水面的波澜。比喻随波逐流，与世同浊。'},
+   {t:'餔其糟而歠其醨',m:'吃酒糟、喝薄酒。比喻随俗浮沉，不必清高。餔（bū）：吃。歠（chuò）：喝。醨（lí）：薄酒。'},
+   {t:'汶汶',m:'污浊不清的样子。'},
+   {t:'察察',m:'洁白干净的样子。与"汶汶"相对。'},
+   {t:'莞尔',m:'微笑的样子。渔父不争辩，一笑而过。'},
+   {t:'鼓枻',m:'拍打船桨（划船而去）。枻（yì）：船桨。'},
+   {t:'沧浪之水',m:'沧浪江的水。水清时洗帽带——天下有道则出仕；水浊时洗脚——天下无道则归隐。这是道家因时制宜的人生哲学。'},
+   {t:'深思高举',m:'思虑深远、行为清高。渔父认为这是屈原自找放逐的原因。'}
+  ]
+},
+
+// ==================== 4 ====================
+{
+  id:4, title:'别赋', author:'江淹',
+  background:'江淹（444-505），南朝梁文学家，以《恨赋》《别赋》闻名于世。《别赋》是六朝骈赋的巅峰之作，以"黯然销魂者，唯别而已矣"开篇，分类描摹各种离别场景——行人、居人、侠客等，将离愁别绪写到了极致。本文只背诵开篇两段，是全篇最精华的行人别、居人别和侠客别。',
+  centralIdea:'文章以"黯然销魂"定调，从多个角度层层铺写离别之苦。第一段写普通人的离别——行子肠断、居人愁卧，风月山水皆染悲色。第二段写侠客壮士的离别——割慈忍爱、沥泣共诀，以"衔感于一剑，非买价于泉里"点明知恩图报的侠义精神，与第一段的儿女情长形成对照。',
+  paragraphs:[
+   {sentences:[
+     {text:'黯然销魂者，唯别而已矣！', trans:'最令人丧魂落魄的，只有离别啊！'},
+     {text:'况秦吴兮绝国，复燕宋兮千里。', trans:'更何况秦国和吴国之间是遥远隔绝的邦国，燕国和宋国之间也相隔千里。'},
+     {text:'或春苔兮始生，乍秋风兮踅', ruby:[{c:'踅',p:'zàn'}], trans:'无论是春天苔藓刚刚生出时，还是秋天风骤然吹起时，'},
+     {text:'起。', trans:''},
+     {text:'是以行子肠断，百感凄恻', ruby:[{c:'恻',p:'cè'}], trans:'因此远行的人愁肠欲断，百感交集、悲伤不已。'},
+     {text:'。', trans:''},
+     {text:'风萧萧而异响，云漫漫而奇色。', trans:'风声萧萧似乎与往日不同，云层漫漫似乎染上了奇异的颜色。'},
+     {text:'舟凝滞', ruby:[{c:'凝滞',p:'níng zhì'}], trans:'船滞留在水边不肯前行，'},
+     {text:'于水滨，车逶迟', ruby:[{c:'逶迟',p:'wēi chí'}], trans:'车缓慢地'},
+     {text:'于山侧；', trans:'徘徊在山侧；'},
+     {text:'棹', ruby:[{c:'棹',p:'zhào'}], trans:'船桨'},
+     {text:'容与而讵', ruby:[{c:'讵',p:'jù'}], trans:'徘徊不前，怎么能前进，'},
+     {text:'前，马寒鸣而不息。', trans:'马在寒风中嘶鸣不止。'},
+     {text:'掩金觞', ruby:[{c:'觞',p:'shāng'}], trans:'盖上金杯，谁还饮酒，'},
+     {text:'而谁御，横玉柱而霑', ruby:[{c:'霑',p:'zhān'}], trans:''},
+     {text:'轼', ruby:[{c:'轼',p:'shì'}], trans:'把琴横放在膝上，泪水打湿了车前的横木。'},
+     {text:'。', trans:''},
+     {text:'居人愁卧，恍', ruby:[{c:'恍',p:'huǎng'}], trans:'留在家中的人忧愁而卧，'},
+     {text:'若有亡。', trans:'恍恍惚惚，若有所失。'},
+     {text:'日下壁而沉彩，月上轩而飞光。', trans:'日光从墙壁上消逝了光彩，月光透过窗户洒了进来。'},
+     {text:'见红兰之受露，望青楸', ruby:[{c:'楸',p:'qiū'}], trans:'看到红兰承受露水，望见青楸'},
+     {text:'之罹', ruby:[{c:'罹',p:'lí'}], trans:'遭受'},
+     {text:'霜。', trans:'寒霜。'},
+     {text:'巡层楹', ruby:[{c:'楹',p:'yíng'}], trans:'在空荡荡的房间里徘徊，'},
+     {text:'而空掩，抚锦幕而虚凉。', trans:'抚摸着锦缎的帷帐，感到一片空虚和凄凉。'},
+     {text:'知离梦之踟躅', ruby:[{c:'踟躅',p:'chí chú'}], trans:'知道你在离别的梦中徘徊不去，'},
+     {text:'，意别魂之飞扬。', trans:'想象你的离魂正在飞扬远行。'}
+   ]},
+   {sentences:[
+     {text:'乃有剑客惭恩，少年报士，韩国赵厕，吴宫燕市。', trans:'还有那些因受了恩惠而惭愧的剑客、知恩图报的少年侠士——聂政刺韩相于韩国，豫让潜伏厕所刺赵襄子，专诸藏匕首于鱼腹刺吴王僚，荆轲在燕国集市饮酒悲歌后刺秦王。'},
+     {text:'割慈忍爱，离邦去里，沥', ruby:[{c:'沥',p:'lì'}], trans:'他们割舍慈亲、忍住爱情，离开邦国故里，'},
+     {text:'泣共诀，抆', ruby:[{c:'抆',p:'wěn'}], trans:'流泪诀别，'},
+     {text:'血相视。', trans:'擦拭血泪，相视无言。'},
+     {text:'驱征马而不顾，见行尘之时起。', trans:'策马而去不再回头，只看见远行扬起的尘土。'},
+     {text:'方衔感于一剑，非买价于泉里。', trans:'他们心怀感恩以一死相报，并不是想在黄泉之下换取名声。'},
+     {text:'金石震而色变，骨肉悲而心死。', trans:'钟磬等乐器响起时脸色为之一变，亲人悲痛欲绝、心如死灰。'}
+   ]}
+  ],
+  annotations:[
+   {t:'黯然销魂',m:'心情沮丧、丧魂落魄的样子。全篇"定调之句"。'},
+   {t:'绝国',m:'相隔极远的邦国。秦（西北）与吴（东南）、燕（北方）与宋（中原）均相距遥远。'},
+   {t:'行子',m:'远行的人。'},
+   {t:'逶迟',m:'车缓慢而不愿前行的样子。写车马似乎也因离别而不忍离去。'},
+   {t:'容与',m:'徘徊不前。'},
+   {t:'讵前',m:'怎么能够前进。"讵"即"岂、怎"。'},
+   {t:'居人',m:'留在家中的人。以上写"行子"，以下写"居人"，两面交映，倍增离愁。'},
+   {t:'剑客惭恩',m:'剑客因受了别人恩惠而感到惭愧，想要报答。以下四句用典：韩国（聂政刺韩相侠累）、赵厕（豫让潜伏厕所刺赵襄子）、吴宫（专诸刺吴王僚）、燕市（荆轲刺秦王）。'},
+   {t:'衔感于一剑',m:'心怀感恩，以一死相报。'},
+   {t:'非买价于泉里',m:'不是想在黄泉之下换取名声。"买价"即买名，换取声誉。'}
+  ]
+},
+
+// ==================== 5 ====================
+{
+  id:5, title:'与元九书', author:'白居易',
+  background:'《与元九书》是白居易写给好友元稹（排行第九）的一封长篇书信，是中国文学批评史上的重要文献。信中系统阐述了白居易的诗歌理论——"文章合为时而著，歌诗合为事而作"，提出"根情、苗言、华声、实义"的诗学体系。本文背诵的是开篇论"文"与"诗"之本源的部分。',
+  centralIdea:'白居易以"三才各有文"立论，追溯"文"的宇宙本源，进而论证诗歌的本质结构——情为根、言为苗、声为花、义为果。他强调诗歌的社会功能：圣人通过诗歌感人心、致太平，"言者无罪，闻者足戒"成为中国古代最开明的文艺政策宣言。全文逻辑严密，层层递进，是儒家诗教的经典表述。',
+  paragraphs:[
+   {sentences:[
+     {text:'夫文尚矣！三才各有文。', trans:'"文"的概念非常古老了！天、地、人三才各有各的文。'},
+     {text:'天之文，三光首之；', trans:'天的文，以日月星辰为首；'},
+     {text:'地之文，五材首之；', trans:'地的文，以金木水火土五材为首；'},
+     {text:'人之文，六经首之。', trans:'人的文，以《诗》《书》《礼》《乐》《易》《春秋》六经为首。'},
+     {text:'就六经言，《诗》又首之。', trans:'就六经而言，《诗经》又排在首位。'},
+     {text:'何者？圣人感人心而天下和平。', trans:'为什么呢？因为圣人通过感动人心而使天下和平。'},
+     {text:'感人心者，莫先乎情，莫始乎言，莫切乎声，莫深乎义。', trans:'能感动人心的，没有比情感更优先的，没有比语言更直接的，没有比声律更切近的，没有比义理更深刻的。'},
+     {text:'诗者，根情，苗言，华声，实义。', trans:'所谓诗，情感是它的根，语言是它的苗，声律是它的花，义理是它的果实。'},
+     {text:'上自圣贤，下至愚騃', ruby:[{c:'騃',p:'ái'}], trans:'上至圣贤，下至愚笨之人，'},
+     {text:'，微及豚', ruby:[{c:'豚',p:'tún'}], trans:'微小到猪和鱼，'},
+     {text:'鱼，幽及鬼神；', trans:'幽深到鬼神；'},
+     {text:'群分而气同，形异而情一。', trans:'种类不同但气质相通，形态各异但情感一致。'},
+     {text:'未有声入而不应、情交而不感者。', trans:'从未有过声音传入而没有回应、情感交汇而不被感动的。'}
+   ]},
+   {sentences:[
+     {text:'圣人知其然，因其言，经之以六义；', trans:'圣人明白这个道理，就根据语言，用风雅颂赋比兴六义来组织它；'},
+     {text:'缘其声，纬之以五音。', trans:'根据声律，用宫商角徵羽五音来配合它。'},
+     {text:'音有韵，义有类。', trans:'声音有韵律，义理有类别。'},
+     {text:'韵协则言顺，言顺则声易入；', trans:'韵律和谐则语言顺畅，语言顺畅则声音容易入耳；'},
+     {text:'类举则情见', ruby:[{c:'见',p:'xiàn'}], trans:'义类恰当则情感显现，'},
+     {text:'，情见则感易交。', trans:'情感显现则感动容易交流。'},
+     {text:'于是乎孕大含深，贯微洞密，上下通而一气泰，忧乐合而百志熙', ruby:[{c:'熙',p:'xī'}], trans:'于是诗歌包含宏大的内容、洞察幽微的道理，天地上下通畅、万物之气和泰，忧乐和谐、百姓的心意和乐。'},
+     {text:'。', trans:''},
+     {text:'五帝三皇所以直道而行，垂拱', ruby:[{c:'拱',p:'gǒng'}], trans:'五帝三皇之所以能够以直道行事、'},
+     {text:'而理者，揭此以为大柄，决此以为大窦', ruby:[{c:'窦',p:'dòu'}], trans:'垂衣拱手而天下大治，就是高举诗歌作为重要手段，疏通诗歌作为关键渠道。'},
+     {text:'也。', trans:''}
+   ]},
+   {sentences:[
+     {text:'故闻"元首明，股肱', ruby:[{c:'肱',p:'gōng'}], trans:'所以听到"君主英明，大臣贤良"的歌谣，'},
+     {text:'良"之歌，则知虞道昌矣。', trans:'就知道虞舜时代的政治昌明了。'},
+     {text:'闻五子洛汭', ruby:[{c:'汭',p:'ruì'}], trans:'听到五子在洛水弯曲处唱的歌谣，'},
+     {text:'之歌，则知夏政荒矣。', trans:'就知道夏朝的政治荒废了。'},
+     {text:'言者无罪，闻者足戒，言者闻者莫不两尽其心焉。', trans:'说话的人没有罪过，听话的人足以引以为戒——说话的人和听话的人无不各自尽到自己的心意。'}
+   ]}
+  ],
+  annotations:[
+   {t:'三才',m:'天、地、人。'},
+   {t:'三光',m:'日、月、星。'},
+   {t:'五材',m:'金、木、水、火、土。'},
+   {t:'六经',m:'《诗》《书》《礼》《乐》《易》《春秋》。'},
+   {t:'根情，苗言，华声，实义',m:'情感是根，语言是苗，声律是花，义理是果实。白居易以植物生长过程为喻建构的诗学体系，是中国文学批评史上最经典的比喻之一。'},
+   {t:'六义',m:'风、雅、颂、赋、比、兴。前三者为《诗经》分类，后三者为表现手法。'},
+   {t:'五音',m:'宫、商、角、徵（zhǐ）、羽。中国古代五声音阶。'},
+   {t:'孕大含深，贯微洞密',m:'包含宏大的内容，洞察幽微的道理。形容诗歌的包容力和穿透力。'},
+   {t:'垂拱而理',m:'垂衣拱手而天下得到治理，指无为而治。'},
+   {t:'元首明，股肱良',m:'君主英明，大臣贤良。出自《尚书·益稷》，虞舜时的歌谣。'},
+   {t:'言者无罪，闻者足戒',m:'说话的人没有罪过，听话的人足以引以为戒。这是中国古代最开明的文艺政策宣言。'}
+  ]
+},
+
+// ==================== 6 ====================
+{
+  id:6, title:'西北有高楼', author:'《古诗十九首》',
+  background:'《西北有高楼》是《古诗十九首》中的第五首，产生于东汉末年。《古诗十九首》被刘勰誉为"五言之冠冕"，代表了汉代文人五言诗的最高成就。这组诗多写游子思妇、人生感慨，风格含蓄婉转，情韵深长。',
+  centralIdea:'全诗以"高楼听曲"为核心意象。诗人听到高楼上传来悲凉的弦歌声，推断歌者是失去丈夫的杞梁妻——实际上是以此典故来写知音难觅的孤独。诗末"不惜歌者苦，但伤知音稀"是全诗点睛之笔：听者作为歌者的知音，正因听懂了她，才更感悲哀。最后"愿为双鸿鹄，奋翅起高飞"表达了超越孤独、追求知音与自由的强烈愿望。',
+  paragraphs:[
+   {sentences:[
+     {text:'西北有高楼，上与浮云齐。', trans:'西北方有一座高楼，高耸入云与浮云齐平。'},
+     {text:'交疏结绮', ruby:[{c:'绮',p:'qǐ'}], trans:'窗格交错以绮丽的花纹装饰，'},
+     {text:'窗，阿', ruby:[{c:'阿',p:'ē'}], trans:'楼阁有曲折的回廊'},
+     {text:'阁三重', ruby:[{c:'重',p:'chóng'}], trans:'和三层'},
+     {text:'阶。', trans:'台阶。'},
+     {text:'上有弦歌声，音响一何悲！', trans:'楼上传来了弹琴唱歌的声音，那音响是多么悲凉啊！'},
+     {text:'谁能为此曲，无乃杞', ruby:[{c:'杞',p:'qǐ'}], trans:'谁能弹出这样的曲子？莫非是杞梁的妻子——'},
+     {text:'梁妻。', trans:'那个为战死的丈夫抚琴痛哭、哭倒了城墙的人。'},
+     {text:'清商随风发，中曲正徘徊', ruby:[{c:'徘徊',p:'pái huái'}], trans:'清商乐调随风飘出，弹到曲中段时旋律盘旋不去。'},
+     {text:'。', trans:''},
+     {text:'一弹再三叹，慷慨有馀哀。', trans:'每弹一个音都伴随着一声声叹息，激越悲凉，余哀不尽。'},
+     {text:'不惜歌者苦，但伤知音稀。', trans:'我不是不怜惜歌者内心的痛苦，而是更伤心这世上能听懂她的人太少了。'},
+     {text:'愿为双鸿鹄', ruby:[{c:'鹄',p:'hú'}], trans:'希望能与她化作一对天鹅，'},
+     {text:'，奋翅起高飞。', trans:'展翅高飞，超越这世俗的阻隔。'}
+   ]}
+  ],
+  annotations:[
+   {t:'上与浮云齐',m:'极言楼之高耸入云。既是实写，也隐喻精神境界的超拔。'},
+   {t:'交疏结绮窗',m:'窗格交错，以绮丽的花纹装饰。暗示楼中人的身份高贵。'},
+   {t:'阿阁三重阶',m:'楼阁有曲折的回廊，三层台阶。层层阻隔，可望而不可即。'},
+   {t:'无乃杞梁妻',m:'莫非是杞梁的妻子？杞梁，春秋时齐国大夫，战死后其妻抚琴而哭，城为之崩塌。此典暗示歌者心中至深的悲痛。'},
+   {t:'清商',m:'乐调名，声调悲凉清澈。'},
+   {t:'一弹再三叹',m:'每弹一个音都伴随着一声声叹息。以音乐写内心痛苦，余韵无穷。'},
+   {t:'不惜歌者苦，但伤知音稀',m:'全诗的点睛之笔——不是不怜惜歌者的痛苦，而是更伤心世上能听懂她的人太少了。听者作为知音，正因懂她，才更感悲哀。'},
+   {t:'愿为双鸿鹄',m:'希望能与歌者化作一对天鹅。鸿鹄即天鹅，象征高洁的志向和自由的飞翔。'}
+  ]
+},
+
+// ==================== 7 ====================
+{
+  id:7, title:'长恨歌（背诵段落）', author:'白居易',
+  background:'《长恨歌》是白居易最著名的长篇叙事诗，作于元和元年（806年）。全诗以唐玄宗与杨贵妃的爱情故事为主线，前半部分写二人极尽欢爱、荒废朝政，后半部分写安史之乱后玄宗对杨妃的无尽思念。本文背诵的段落是全诗的开篇部分，从"汉皇重色思倾国"到"千乘万骑西南行"，以极精炼的笔法写尽了从极乐到极悲的转折。',
+  centralIdea:'这段文字是全诗最华彩的篇章。开头"汉皇重色思倾国"即暗示美色误国的主题。随后以一连串华丽的意象写杨妃的绝世容貌与得宠盛况——"回眸一笑百媚生""从此君王不早朝""不重生男重生女"，极尽渲染。最后以"渔阳鼙鼓动地来，惊破霓裳羽衣曲"一句骤然转折，从极乐坠入极悲，被公认为中国文学史上最经典的转折之笔。',
+  paragraphs:[
+   {sentences:[
+     {text:'汉皇重色思倾国，御宇', ruby:[{c:'御宇',p:'yù yǔ'}], trans:'唐玄宗贪恋美色，渴望得到绝代佳人，'},
+     {text:'多年求不得。', trans:'统治天下多年却始终找不到。'},
+     {text:'杨家有女初长成，养在深闺', ruby:[{c:'闺',p:'guī'}], trans:'杨家的女儿刚刚长大成人，'},
+     {text:'人未识。', trans:'养在深深的闺房中无人知晓。'},
+     {text:'天生丽质难自弃，一朝选在君王侧。', trans:'天生美丽的姿容难以被埋没，终于有一天被选到了君王的身旁。'},
+     {text:'回眸', ruby:[{c:'眸',p:'móu'}], trans:'她回头一笑，'},
+     {text:'一笑百媚生，六宫粉黛', ruby:[{c:'黛',p:'dài'}], trans:'千娇百媚，后宫三千佳丽'},
+     {text:'无颜色。', trans:'在她面前全都黯然失色。'},
+     {text:'春寒赐', ruby:[{c:'赐',p:'cì'}], trans:'春寒时节，皇帝赐她在华清池沐浴，'},
+     {text:'浴华清池，温泉水滑洗凝脂', ruby:[{c:'脂',p:'zhī'}], trans:'温泉水滑润地洗着她凝脂般洁白柔嫩的肌肤。'},
+     {text:'。', trans:''},
+     {text:'侍儿扶起娇无力，始是新承恩泽时。', trans:'侍女将她扶起时，她娇弱无力——这正是刚刚承受了皇帝恩泽的时刻。'},
+     {text:'云鬓', ruby:[{c:'鬓',p:'bìn'}], trans:'乌云般的鬓发、鲜花般的容颜，头上戴着金步摇，'},
+     {text:'花颜金步摇，芙蓉帐暖度春宵。', trans:'在芙蓉帐中温暖地度过春宵。'},
+     {text:'春宵苦短日高起，从此君王不早朝', ruby:[{c:'朝',p:'cháo'}], trans:'春夜太短，太阳高高升起才醒来——'},
+     {text:'。', trans:''},
+     {text:'承欢侍宴无闲暇', ruby:[{c:'暇',p:'xiá'}], trans:'从此君王再也不上早朝了。她承受欢爱、侍奉宴席，没有空闲的时候，'},
+     {text:'，春从春游夜专夜。', trans:'春天跟着春游，每夜都专宠她一人。'},
+     {text:'后宫佳丽三千人，三千宠爱在一身。', trans:'后宫中有三千名佳丽，但这三千份宠爱全都集中在她一个人身上。'},
+     {text:'金屋妆成娇侍夜，玉楼宴罢醉和春。', trans:'金屋中梳妆完毕娇媚地侍奉过夜，玉楼中宴饮结束后醉意中带着春情。'},
+     {text:'姊妹弟兄皆列土，可怜光彩生门户。', trans:'她的姐妹兄弟都分封了土地，可羡的光彩照耀了整个家族的门户。'},
+     {text:'遂', ruby:[{c:'遂',p:'suì'}], trans:'于是让天下父母的心都改变了——'},
+     {text:'令天下父母心，不重生男重生女。', trans:'不看重生男孩，反而看重生女孩了。'},
+     {text:'骊', ruby:[{c:'骊',p:'lí'}], trans:'骊山上的华清宫高耸入云，'},
+     {text:'宫高处入青云，仙乐风飘处处闻。', trans:'仙乐随风飘荡，处处都可以听到。'},
+     {text:'缓歌慢舞凝丝竹，尽日君王看不足。', trans:'舒缓的歌声、柔慢的舞蹈与丝竹之声凝结在一起，君王整天看都看不够。'},
+     {text:'渔阳鼙', ruby:[{c:'鼙',p:'pí'}], trans:'渔阳的战鼓声'},
+     {text:'鼓动地来，惊破《霓裳', ruby:[{c:'霓裳',p:'ní cháng'}], trans:'惊天动地而来，'},
+     {text:'羽衣曲》。', trans:'惊破了《霓裳羽衣曲》的美梦。'},
+     {text:'九重城阙', ruby:[{c:'阙',p:'què'}], trans:'京城长安'},
+     {text:'烟尘生，千乘', ruby:[{c:'乘',p:'shèng'}], trans:'烟尘弥漫，'},
+     {text:'万骑', ruby:[{c:'骑',p:'jì'}], trans:'千乘万骑'},
+     {text:'西南行。', trans:'向西南逃难而去。'}
+   ]}
+  ],
+  annotations:[
+   {t:'汉皇',m:'指唐玄宗（李隆基）。以汉代唐是唐诗常用避讳手法。汉武帝宠幸李夫人，与玄宗宠幸杨贵妃形成对应。'},
+   {t:'倾国',m:'绝色美女。典出李延年"一顾倾人城，再顾倾人国"——开篇即暗示"美色误国"主题。'},
+   {t:'御宇',m:'统治天下。'},
+   {t:'回眸一笑百媚生',m:'回头一笑，千娇百媚。用一个瞬间动作写尽杨妃之美，是唐诗中最著名的写美人之笔。'},
+   {t:'华清池',m:'骊山上的温泉浴池。'},
+   {t:'凝脂',m:'凝固的脂肪，形容皮肤洁白细嫩。语出《诗经·卫风·硕人》"肤如凝脂"。'},
+   {t:'金步摇',m:'一种头饰，行走时随步摇动。以物衬人，极写杨妃的华贵娇媚。'},
+   {t:'姊妹弟兄皆列土',m:'杨贵妃得宠后，三个姐姐分别封为韩国夫人、虢国夫人、秦国夫人，族兄杨国忠任宰相。一门荣宠至极。'},
+   {t:'不重生男重生女',m:'天下父母都希望生女儿而非儿子——将个人恩宠放大到改变社会价值观的程度，以夸张笔法写尽杨妃之得宠。'},
+   {t:'渔阳鼙鼓',m:'渔阳（今河北蓟县一带）是安禄山的根据地。"鼙鼓"即军中小鼓，代指战鼓声——安禄山起兵叛乱。'},
+   {t:'霓裳羽衣曲',m:'唐代宫廷著名舞曲，传为唐玄宗所作。"惊破霓裳羽衣曲"以乐舞被惊破来象征盛世美梦的破灭——中国文学史上最著名的转折句。'}
+  ]
+},
+
+// ==================== 8 ====================
+{
+  id:8, title:'临江仙·夜饮东坡醒复醉', author:'苏轼',
+  background:'此词作于宋神宗元丰五年（1082年），苏轼因"乌台诗案"被贬黄州（今湖北黄冈）的第三年。他在黄州城东开荒耕种，自号"东坡居士"。一夜饮酒归来，家童已睡，敲门不应，他索性倚杖听江声，由此生发出对人生的深沉感悟。',
+  centralIdea:'上阕写日常生活琐事——夜饮归来、敲门不应、倚杖听江声，平淡中见真趣，"倚杖听江声"是从日常进入审美境界的关键转折。下阕化用《庄子》语意，"长恨此身非我有"道出贬谪中身不由己的切肤之痛，"江海寄馀生"则表达了超脱功名、归隐江湖的渴望。全词由日常小事引出人生大感悟，于平缓中见深沉，是苏轼旷达人格的集中体现。',
+  paragraphs:[
+   {sentences:[
+     {text:'夜饮东坡醒复醉，归来仿佛三更', ruby:[{c:'更',p:'gēng'}], trans:'夜晚在东坡喝酒，醒了又醉、醉了又醒，'},
+     {text:'。', trans:''},
+     {text:'家童鼻息已雷鸣。', trans:'归来时大概是三更天了。家里的童仆早已鼾声如雷。'},
+     {text:'敲门都不应，倚杖听江声。', trans:'怎么敲门都没有回应，我干脆拄着拐杖，听那江水的声音。'}
+   ]},
+   {sentences:[
+     {text:'长恨此身非我有，何时忘却营营。', trans:'一直遗憾这身体不属于我自己，什么时候才能忘却那蝇营狗苟的功名利禄呢。'},
+     {text:'夜阑', ruby:[{c:'阑',p:'lán'}], trans:'夜深了，'},
+     {text:'风静縠', ruby:[{c:'縠',p:'hú'}], trans:'风停了，'},
+     {text:'纹平。', trans:'江面上绉纱般的细纹也平静了下来。'},
+     {text:'小舟从此逝', ruby:[{c:'逝',p:'shì'}], trans:'驾一叶小舟从此消逝，'},
+     {text:'，江海寄馀生。', trans:'把剩下的生命全部寄托于江海之间。'}
+   ]}
+  ],
+  annotations:[
+   {t:'东坡',m:'地名，在黄州（今湖北黄冈）。苏轼贬谪黄州时在此开荒耕种，自号"东坡居士"。'},
+   {t:'醒复醉',m:'醒了又醉，醉了又醒——借酒消愁，也写其率性旷达。'},
+   {t:'倚杖听江声',m:'干脆不敲门了，拄着拐杖听江水声——从日常的琐碎进入审美的境界。全词的关键转折。'},
+   {t:'长恨此身非我有',m:'化用《庄子·知北游》"汝身非汝有也"——人在贬谪中，身不由己，命运被朝廷掌控。这是切肤之痛。'},
+   {t:'营营',m:'蝇营狗苟，为功名利禄而忙碌奔波。'},
+   {t:'夜阑',m:'夜深将尽。'},
+   {t:'縠纹',m:'绉纱般的细纹。写江水在深夜风平浪静时微微起皱的样子——既是写景，更是写心：内心的波澜在此刻归于平静。'},
+   {t:'江海寄馀生',m:'把剩下的生命全部寄托于江海之间——江湖是与庙堂对立的自由空间。中国文学中最动人的归隐意象之一。'}
+  ]
+}
+];
+
+// ===================================================================
+// STATE
+// ===================================================================
+let currentTextIdx = 0;
+let currentMode = 'study';
+let currentDifficulty = 'easy';
+let blankedParas = null;
+let showAnswers = false;
+
+// ===================================================================
+// HELPERS
+// ===================================================================
+const DIFFICULTY_RATIOS = { easy: 0.35, medium: 0.50, hard: 0.70 };
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function meaningfulChars(text) {
+  return text.replace(/[，。！？；、：""''《》（）「」『』【】\s\d]/g, '').length;
+}
+
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+// ===================================================================
+// BLANKING: punctuation-preserving
+// ===================================================================
+function generateBlanks(text, difficulty) {
+  const ratio = DIFFICULTY_RATIOS[difficulty];
+  const seed = Date.now() + Math.floor(Math.random() * 100000);
+  const rng = seededRandom(seed);
+
+  const result = text.paragraphs.map(p =>
+    p.sentences.map(s => ({ ...s, blanked: false, _blankable: meaningfulChars(s.text) >= 3 }))
+  );
+
+  for (let pi = 0; pi < result.length; pi++) {
+    const sentences = result[pi];
+    const blankable = [];
+    for (let i = 0; i < sentences.length; i++) {
+      if (sentences[i]._blankable) blankable.push(i);
+    }
+    if (blankable.length === 0) continue;
+
+    let blankCount = Math.floor(blankable.length * ratio);
+    if (blankCount === 0 && blankable.length >= 3 && ratio >= 0.35) blankCount = 1;
+    blankCount = Math.min(blankCount, Math.max(0, blankable.length - 1));
+    if (blankCount <= 0) continue;
+
+    const shuffled = [...blankable];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    for (let k = 0; k < blankCount; k++) {
+      sentences[shuffled[k]].blanked = true;
+    }
+  }
+
+  for (const para of result) {
+    for (const s of para) delete s._blankable;
+  }
+  return result;
+}
+
+/** Render a sentence with ruby, optionally blanked. When blanked, replaces Chinese chars with ＿, keeps punctuation. */
+function renderSentenceHTML(s, showAnswer) {
+  if (!s.blanked) {
+    return renderRubyHTML(s.text, s.ruby || []);
+  }
+  if (showAnswer) {
+    return '<span class="blank answer-reveal">' + renderRubyHTML(s.text, s.ruby || []) + '</span>';
+  }
+  var result = '';
+  for (var i = 0; i < s.text.length; i++) {
+    var ch = s.text[i];
+    if (/[一-鿿㐀-䶿]/.test(ch)) {
+      result += '＿';
+    } else {
+      result += ch;
+    }
+  }
+  return '<span class="blank">' + escapeHTML(result) + '</span>';
+}
+
+function renderRubyHTML(text, rubies) {
+  if (!rubies || rubies.length === 0) return escapeHTML(text);
+  var html = '';
+  var remaining = text;
+  for (var ri = 0; ri < rubies.length; ri++) {
+    var r = rubies[ri];
+    var idx = remaining.indexOf(r.c);
+    if (idx === -1) continue;
+    html += escapeHTML(remaining.substring(0, idx));
+    var extraAttrs = r.annoIdx !== undefined ? ' data-anno="' + r.annoIdx + '" class="anno-term" onclick="event.stopPropagation();highlightAnnotation(' + r.annoIdx + ')" title="点击查看注释"' : '';
+    html += '<ruby' + extraAttrs + '>' + escapeHTML(r.c) + '<rt>' + escapeHTML(r.p) + '</rt></ruby>';
+    remaining = remaining.substring(idx + r.c.length);
+  }
+  html += escapeHTML(remaining);
+  return html;
+}
+
+// ===================================================================
+// RENDER: STUDY MODE
+// ===================================================================
+function renderStudyMode(text) {
+  var main = document.getElementById('main');
+  var html = '';
+
+  html += '<div class="art-header fade">';
+  html += '<h2>' + escapeHTML(text.title) + '</h2>';
+  html += '<div class="meta">' + escapeHTML(text.author) + '</div>';
+  html += '<div class="divider"></div>';
+  html += '</div>';
+
+  // Two columns
+  html += '<div class="study-grid fade">';
+
+  // LEFT: original text
+  html += '<div class="study-panel">';
+  html += '<h3>📜 原文 <span style="font-weight:400;font-size:0.7rem;color:#a08060;">（点击词句查看注释/翻译）</span></h3>';
+  html += '<div class="panel-body orig-text" id="orig-text-panel">';
+  for (var pi = 0; pi < text.paragraphs.length; pi++) {
+    html += '<p data-para="' + pi + '">';
+    var sentences = text.paragraphs[pi].sentences;
+    for (var si = 0; si < sentences.length; si++) {
+      var s = sentences[si];
+      var hasTrans = s.trans && s.trans.length > 0;
+      html += '<span class="sentence' + (hasTrans ? ' has-trans' : '') + '" data-para="' + pi + '" data-si="' + si + '"' + (hasTrans ? ' onclick="event.stopPropagation();toggleTranslation(this)" title="点击查看翻译"' : '') + '>';
+      html += renderRubyHTML(s.text, s.ruby || []);
+      html += '</span>';
+    }
+    html += '</p>';
+  }
+  html += '</div></div>';
+
+  // RIGHT: annotations
+  html += '<div class="study-panel">';
+  html += '<h3>📝 注释</h3>';
+  html += '<div class="panel-body anno-list" id="anno-panel">';
+  for (var ai = 0; ai < text.annotations.length; ai++) {
+    var a = text.annotations[ai];
+    html += '<div class="anno-item" id="anno-' + ai + '" data-anno="' + ai + '">';
+    html += '<span class="anno-term">' + escapeHTML(a.t) + '</span>';
+    html += '<span class="anno-def">' + escapeHTML(a.m) + '</span>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  html += '</div>'; // end study-grid
+
+  // Bottom cards
+  html += '<div class="bottom-sections fade">';
+  html += '<div class="info-card"><h3>📖 文章背景</h3><p>' + escapeHTML(text.background) + '</p></div>';
+  html += '<div class="info-card"><h3>💡 中心思想</h3><p>' + escapeHTML(text.centralIdea) + '</p></div>';
+  html += '</div>';
+
+  main.innerHTML = html;
+}
+
+// ===================================================================
+// INTERACTIONS
+// ===================================================================
+function highlightAnnotation(idx) {
+  var text = texts[currentTextIdx];
+  if (idx < 0 || idx >= text.annotations.length) return;
+
+  // Flash all matching terms in text
+  var terms = document.querySelectorAll('.anno-term[data-anno="' + idx + '"]');
+  for (var i = 0; i < terms.length; i++) {
+    terms[i].classList.add('flash');
+    setTimeout((function(el) { return function() { el.classList.remove('flash'); }; })(terms[i]), 800);
+  }
+
+  // Scroll to annotation
+  var annoEl = document.getElementById('anno-' + idx);
+  if (annoEl) {
+    annoEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    annoEl.classList.add('flash');
+    setTimeout(function() { annoEl.classList.remove('flash'); }, 1500);
+  }
+}
+
+function toggleTranslation(el) {
+  var pi = parseInt(el.dataset.para);
+  var si = parseInt(el.dataset.si);
+  var text = texts[currentTextIdx];
+  var para = text.paragraphs[pi];
+  if (!para) return;
+  var s = para.sentences[si];
+  if (!s || !s.trans || s.trans.length === 0) return;
+
+  // Remove any existing inline translation in this paragraph
+  var paraEl = el.closest('p');
+  if (!paraEl) return;
+  var existing = paraEl.parentNode.querySelector('.trans-inline');
+  if (existing && existing.dataset.si === String(si)) {
+    existing.remove();
+    return;
+  }
+  if (existing) existing.remove();
+
+  // Create translation element
+  var transDiv = document.createElement('div');
+  transDiv.className = 'trans-inline';
+  transDiv.dataset.si = si;
+  transDiv.style.cssText = 'font-size:0.82rem;color:#5a4a3a;background:#faf6ee;border-left:3px solid #c89460;padding:6px 10px;margin:2px 0 6px 1em;border-radius:0 5px 5px 0;line-height:1.7;text-indent:0;';
+  transDiv.innerHTML = '<span style="font-size:0.68rem;color:#a08060;">💬 译文：</span>' + escapeHTML(s.trans);
+  paraEl.parentNode.insertBefore(transDiv, paraEl.nextSibling);
+}
+
+// ===================================================================
+// RENDER: QUIZ MODE
+// ===================================================================
+function renderQuizMode(text, paras) {
+  var main = document.getElementById('main');
+  var totalSentences = 0, blankedCount = 0, totalChars = 0, blankedChars = 0;
+  for (var pi = 0; pi < paras.length; pi++) {
+    for (var si = 0; si < paras[pi].length; si++) {
+      totalSentences++;
+      if (paras[pi][si].blanked) {
+        blankedCount++;
+        blankedChars += meaningfulChars(paras[pi][si].text);
+      }
+      totalChars += meaningfulChars(paras[pi][si].text);
+    }
+  }
+
+  var html = '';
+  html += '<div class="art-header fade">';
+  html += '<h2>' + escapeHTML(text.title) + '</h2>';
+  html += '<div class="meta">' + escapeHTML(text.author) + ' · 默写题</div>';
+  html += '<div class="divider"></div>';
+  html += '</div>';
+
+  html += '<div class="quiz-stats fade">共 ' + totalSentences + ' 句，挖空 ' + blankedCount + ' 句 · 约 ' + Math.round(blankedChars/totalChars*100) + '% 字数</div>';
+  html += '<button id="btn-show-answers" class="fade" onclick="toggleAnswers()">' + (showAnswers ? '🙈 隐藏答案' : '👁 显示答案') + '</button>';
+
+  html += '<div class="section fade"><div class="quiz-text">';
+  for (var pi = 0; pi < paras.length; pi++) {
+    html += '<p>';
+    for (var si = 0; si < paras[pi].length; si++) {
+      html += renderSentenceHTML(paras[pi][si], showAnswers);
+    }
+    html += '</p>';
+  }
+  html += '</div></div>';
+
+  main.innerHTML = html;
+}
+
+function toggleAnswers() {
+  showAnswers = !showAnswers;
+  refreshQuiz();
+}
+
+function refreshQuiz() {
+  renderQuizMode(texts[currentTextIdx], blankedParas);
+}
+
+// ===================================================================
+// DISPATCH
+// ===================================================================
+function refreshAll() {
+  var text = texts[currentTextIdx];
+  if (currentMode === 'study') {
+    renderStudyMode(text);
+  } else {
+    blankedParas = generateBlanks(text, currentDifficulty);
+    showAnswers = false;
+    renderQuizMode(text, blankedParas);
+  }
+}
+
+// ===================================================================
+// SIDEBAR
+// ===================================================================
+function buildSidebar() {
+  var list = document.getElementById('text-list');
+  var html = '';
+  texts.forEach(function(t, i) {
+    html += '<button class="item' + (i === currentTextIdx ? ' active' : '') + '" data-idx="' + i + '">';
+    html += escapeHTML(t.title);
+    html += '<span class="author">' + escapeHTML(t.author) + '</span>';
+    html += '</button>';
+  });
+  list.innerHTML = html;
+
+  list.querySelectorAll('.item').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      currentTextIdx = parseInt(this.dataset.idx);
+      updateActiveText();
+      refreshAll();
+    });
+  });
+}
+
+function updateActiveText() {
+  document.querySelectorAll('#text-list .item').forEach(function(btn, i) {
+    btn.classList.toggle('active', i === currentTextIdx);
+  });
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-study').classList.toggle('active', mode === 'study');
+  document.getElementById('mode-quiz').classList.toggle('active', mode === 'quiz');
+  document.getElementById('diff-group').style.display = (mode === 'quiz') ? 'block' : 'none';
+  document.getElementById('btn-regenerate').style.display = (mode === 'quiz') ? 'block' : 'none';
+  document.getElementById('quiz-hint').style.display = (mode === 'quiz') ? 'block' : 'none';
+  if (mode === 'quiz') showAnswers = false;
+  refreshAll();
+}
+
+function setDifficulty(diff) {
+  currentDifficulty = diff;
+  document.querySelectorAll('.diff-btns button').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.diff === diff);
+  });
+  if (currentMode === 'quiz') {
+    blankedParas = generateBlanks(texts[currentTextIdx], currentDifficulty);
+    showAnswers = false;
+    renderQuizMode(texts[currentTextIdx], blankedParas);
+  }
+}
+
+// ===================================================================
+// INIT
+// ===================================================================
+function init() {
+  buildSidebar();
+
+  document.getElementById('mode-study').addEventListener('click', function() { setMode('study'); });
+  document.getElementById('mode-quiz').addEventListener('click', function() { setMode('quiz'); });
+
+  document.querySelectorAll('.diff-btns button').forEach(function(btn) {
+    btn.addEventListener('click', function() { setDifficulty(btn.dataset.diff); });
+  });
+
+  document.getElementById('btn-regenerate').addEventListener('click', function() {
+    if (currentMode === 'quiz') {
+      blankedParas = generateBlanks(texts[currentTextIdx], currentDifficulty);
+      showAnswers = false;
+      renderQuizMode(texts[currentTextIdx], blankedParas);
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey && currentMode === 'quiz') {
+      var tag = document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      blankedParas = generateBlanks(texts[currentTextIdx], currentDifficulty);
+      showAnswers = false;
+      renderQuizMode(texts[currentTextIdx], blankedParas);
+    }
+  });
+
+  refreshAll();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
